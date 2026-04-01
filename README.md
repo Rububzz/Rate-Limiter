@@ -37,8 +37,24 @@ Counter for "user:123:default:bucket"
 
 ## Running Locally
 
+This project uses Docker to manage Redis, while the Go service runs on the host machine.
+
+### 1. Start Redis
+
+```sh
+docker-compose up -d
+```
+
+### 2. Start Go Server
+
 ```sh
 go run cmd/server/main.go
+```
+
+### 3. Clean up
+
+```sh
+docker-compose down
 ```
 
 ## API
