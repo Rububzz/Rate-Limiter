@@ -57,7 +57,7 @@ func main() {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "applicatio/json")
+		w.Header().Set("Content-Type", "application/json")
 		if !allowed {
 			w.WriteHeader(http.StatusTooManyRequests)
 		}
