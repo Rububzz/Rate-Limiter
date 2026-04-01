@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Rububzz/Rate-Limiter/internals/limiter"
+	"github.com/redis/go-redis/v9"
 )
 
 type LimitConfig struct {
@@ -32,7 +33,11 @@ type CheckResponse struct {
 }
 
 func main() {
-	fw := limiter.NewFixedWindow()
+	//	fw := limiter.NewFixedWindow()
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	fw := limiter.NewFixedWindowRedis(rdb)
 	http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
 		var req CheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -46,7 +51,12 @@ func main() {
 			config = policies["default"]
 		}
 
-		allowed, remaining, resetAt := fw.Allow(req.Key, policy, config.Limit, config.WindowSeconds)
+		// allowed, remaining, resetAt := fw.Allow(req.Key, policy, config.Limit, config.WindowSeconds)
+		allowed, remaining, resetAt, err := fw.Allow(req.Key, config.Limit, config.WindowSeconds)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "applicatio/json")
 		if !allowed {
 			w.WriteHeader(http.StatusTooManyRequests)

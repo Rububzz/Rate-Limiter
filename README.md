@@ -9,6 +9,7 @@ Redis, and observability.
 | Version | Tag              | Description                                      |
 | ------- | ---------------- | ------------------------------------------------ |
 | v0.1    | `v0.1-in-memory` | Fixed window rate limiter with in-memory storage |
+| v0.2    | `v0.2-redis`     | Distributed limiter using Redis & Pipelining     |
 
 ## Architecture
 
@@ -111,3 +112,20 @@ curl -s -X POST http://localhost:8080/check \
 - Not distributed — running multiple instances means each has its own counter,
   allowing users to exceed the limit across instances
 - These will be solved in `v0.2` with Redis
+
+### v0.2 - Redis
+
+**_How it works:_**
+
+- Uses Redis Pipelining to group INCR and EXPIRE commands into a single network round-trip, significantly reducing latency.
+- State is shared across all service instances, allowing for true distributed rate limiting.
+- The windowKey is derived from the Unix timestamp: key:policy:windowID.
+
+**Limitations:**
+
+- Non-Atomicity: Unlike a Redis Transaction (MULTI/EXEC) or a Lua Script, a Pipeline is **not**
+  atomic. Commands are sent together, but Redis may execute other clients' commands between ours.
+- The "Expiry Race": In a highly concurrent environment, two requests might both call INCR.
+  If the process crashes between the INCR and the EXPIRE command in the pipeline, a key
+  could theoretically exist without an expiry (though the use of time-slotted keys in this implementation mitigates the long-term impact)
+- This will be fixed in `0.3` with the use of lua scripts
