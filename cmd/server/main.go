@@ -42,6 +42,7 @@ func main() {
 		var req CheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid Request", http.StatusBadRequest)
+			return
 		}
 
 		policy := req.Policy

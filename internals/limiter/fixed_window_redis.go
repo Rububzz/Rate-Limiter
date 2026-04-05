@@ -20,12 +20,15 @@ func (f *FixedWindowRedis) Allow(key string, limit int64, windowSeconds int64) (
 	ctx := context.Background()
 	now := time.Now().Unix()
 
-	windowKey := fmt.Sprintf("%s:%d", key, now/windowSeconds)
+	windowKey := fmt.Sprintf("%s:%s:%d", key, policy, now/windowSeconds)
 
 	pipe := f.client.Pipeline()
 	incr := pipe.Incr(ctx, windowKey)
 	pipe.Expire(ctx, windowKey, time.Duration(windowSeconds)*time.Second)
-	pipe.Exec(ctx)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return true, 0, 0, nil
+	}
 
 	count := incr.Val()
 	remaining := limit - count
