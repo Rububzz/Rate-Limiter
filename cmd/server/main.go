@@ -38,7 +38,8 @@ func main() {
 		Addr: "localhost:6379",
 	})
 	//	fw := limiter.NewFixedWindowRedis(rdb)
-	var fw limiter.Limiter = limiter.NewFixedWindowLua(rdb)
+	//	var fw limiter.Limiter = limiter.NewFixedWindowLua(rdb)
+	var fw limiter.Limiter = limiter.NewSlidingWindowLua(rdb)
 	http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
 		var req CheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

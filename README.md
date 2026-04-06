@@ -6,11 +6,12 @@ Redis, and observability.
 
 ## Progression
 
-| Version | Tag               | Description                                      |
-| ------- | ----------------- | ------------------------------------------------ |
-| v0.1    | `v0.1-in-memory`  | Fixed window rate limiter with in-memory storage |
-| v0.2    | `v0.2-redis`      | Distributed limiter using Redis & Pipelining     |
-| v0.3    | `v0.3-lua-atomic` | Atomic operations via Redis Lua scripting        |
+| Version | Tag                   | Description                                         |
+| ------- | --------------------- | --------------------------------------------------- |
+| v0.1    | `v0.1-in-memory`      | Fixed window rate limiter with in-memory storage    |
+| v0.2    | `v0.2-redis`          | Distributed limiter using Redis & Pipelining        |
+| v0.3    | `v0.3-lua-atomic`     | Atomic operations via Redis Lua scripting           |
+| v0.4    | `v0.4-sliding-window` | Sliding window rate limiter using Redis sorted sets |
 
 ## Architecture
 
@@ -172,3 +173,42 @@ curl -s -X POST http://localhost:8080/check \
   end of one window and immediately exhaust it again at the start of the next, effectively
   doubling their request rate at the boundary
 - This will be addressed in a future version with a Sliding Window algorithm
+
+### v0.4 — Sliding Window
+
+**How it works:**
+
+- Stores the exact timestamp of every request in a Redis Sorted Set (ZSET)
+- On each request, entries older than `windowSeconds` are removed via `ZREMRANGEBYSCORE`
+- `ZCARD` counts the remaining entries — these are all requests within the current window
+- If count is under the limit, the current timestamp is added via `ZADD` and the request is allowed
+- The entire sequence runs atomically inside a Lua script
+
+**Why this fixes the boundary spike:**
+
+- Fixed window resets at fixed boundaries — a user can exhaust their limit just before
+  a reset and again just after, effectively doubling their request rate
+- Sliding window looks back exactly `windowSeconds` from the current moment on every request
+  so there is no boundary to exploit
+
+**Key implementation details:**
+
+- Timestamps are stored in milliseconds so two requests within the same second get
+  different scores
+- Each member includes a random suffix (`timestamp-randomID`) to prevent duplicate
+  members overwriting each other under high concurrency
+- `ZADD` only runs if the request is allowed — blocked requests are not recorded
+- `EXPIRE` is always refreshed so inactive keys are cleaned up automatically by Redis
+
+**Tradeoffs vs Fixed Window:**
+
+- More accurate — no boundary spike possible
+- Higher memory usage — stores every request timestamp instead of a single counter
+- Slightly more Redis work per request — `ZREMRANGEBYSCORE`, `ZCARD`, `ZADD` vs just `INCR`
+- For most use cases the accuracy improvement is worth the tradeoff
+
+**Limitations:**
+
+- At very high request rates the sorted set can grow large within a window
+- The `reset_at` field is an approximation — sliding window has no fixed reset point
+  since the window rolls continuously with every request
