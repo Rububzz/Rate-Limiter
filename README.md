@@ -6,10 +6,11 @@ Redis, and observability.
 
 ## Progression
 
-| Version | Tag              | Description                                      |
-| ------- | ---------------- | ------------------------------------------------ |
-| v0.1    | `v0.1-in-memory` | Fixed window rate limiter with in-memory storage |
-| v0.2    | `v0.2-redis`     | Distributed limiter using Redis & Pipelining     |
+| Version | Tag               | Description                                      |
+| ------- | ----------------- | ------------------------------------------------ |
+| v0.1    | `v0.1-in-memory`  | Fixed window rate limiter with in-memory storage |
+| v0.2    | `v0.2-redis`      | Distributed limiter using Redis & Pipelining     |
+| v0.3    | `v0.3-lua-atomic` | Atomic operations via Redis Lua scripting        |
 
 ## Architecture
 
@@ -145,3 +146,29 @@ curl -s -X POST http://localhost:8080/check \
   If the process crashes between the INCR and the EXPIRE command in the pipeline, a key
   could theoretically exist without an expiry (though the use of time-slotted keys in this implementation mitigates the long-term impact)
 - This will be fixed in `0.3` with the use of lua scripts
+
+### v0.3 — Lua Atomic Script
+
+**How it works:**
+
+- Replaces the pipeline with a Redis Lua script executed via `EVAL`
+- `INCR` and `EXPIRE` run as a single atomic operation inside Redis
+- Redis is single-threaded — while the Lua script runs, no other command can execute
+- The expiry is only set when `count == 1`, meaning the key was just created by this request
+
+**Why this fixes the pipeline bug:**
+
+- In v0.2, a crash between `INCR` and `EXPIRE` leaves the key with no expiry — the user is permanently rate limited
+- In v0.3, there is no gap between the two operations — they are one indivisible unit
+
+**Fail open:**
+
+- If Redis is unreachable, requests are allowed through rather than blocking all traffic
+- Availability is prioritised over strict enforcement during outages
+
+**Limitations:**
+
+- Fixed window still has a boundary spike problem — a user can exhaust their limit at the
+  end of one window and immediately exhaust it again at the start of the next, effectively
+  doubling their request rate at the boundary
+- This will be addressed in a future version with a Sliding Window algorithm
