@@ -16,7 +16,7 @@ func NewFixedWindowRedis(client *redis.Client) *FixedWindowRedis {
 	return &FixedWindowRedis{client: client}
 }
 
-func (f *FixedWindowRedis) Allow(key string, limit int64, windowSeconds int64) (bool, int64, int64, error) {
+func (f *FixedWindowRedis) Allow(key string, policy string, limit int64, windowSeconds int64) (bool, int64, int64, error) {
 	ctx := context.Background()
 	now := time.Now().Unix()
 
@@ -32,6 +32,9 @@ func (f *FixedWindowRedis) Allow(key string, limit int64, windowSeconds int64) (
 
 	count := incr.Val()
 	remaining := limit - count
+	if remaining < 0 {
+		remaining = 0
+	}
 	reset := now + (windowSeconds - (now % windowSeconds))
 
 	allowed := remaining > 0

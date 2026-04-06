@@ -37,7 +37,8 @@ func main() {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	fw := limiter.NewFixedWindowRedis(rdb)
+	//	fw := limiter.NewFixedWindowRedis(rdb)
+	var fw limiter.Limiter = limiter.NewFixedWindowLua(rdb)
 	http.HandleFunc("/check", func(w http.ResponseWriter, r *http.Request) {
 		var req CheckRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -53,7 +54,7 @@ func main() {
 		}
 
 		// allowed, remaining, resetAt := fw.Allow(req.Key, policy, config.Limit, config.WindowSeconds)
-		allowed, remaining, resetAt, err := fw.Allow(req.Key, config.Limit, config.WindowSeconds)
+		allowed, remaining, resetAt, err := fw.Allow(req.Key, policy, config.Limit, config.WindowSeconds)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
