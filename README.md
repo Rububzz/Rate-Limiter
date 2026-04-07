@@ -12,6 +12,7 @@ Redis, and observability.
 | v0.2    | `v0.2-redis`          | Distributed limiter using Redis & Pipelining        |
 | v0.3    | `v0.3-lua-atomic`     | Atomic operations via Redis Lua scripting           |
 | v0.4    | `v0.4-sliding-window` | Sliding window rate limiter using Redis sorted sets |
+| v0.5    | `v0.5-grpc`           | Replace REST with gRPC transport                    |
 
 ## Architecture
 
@@ -212,3 +213,25 @@ curl -s -X POST http://localhost:8080/check \
 - At very high request rates the sorted set can grow large within a window
 - The `reset_at` field is an approximation — sliding window has no fixed reset point
   since the window rolls continuously with every request
+
+### v0.5 — gRPC Transport
+
+**What changed:**
+
+- Replaced HTTP REST server with a gRPC server
+- Defined service contract in `proto/ratelimiter.proto`
+- `protoc` generates typed request/response structs and server interface
+- No manual JSON encoding/decoding — protobuf handles serialization
+- Rate limiting logic in `internals/limiter/` is completely untouched
+
+**Why gRPC over REST:**
+
+- Binary protocol (protobuf) instead of text (JSON) — smaller payloads
+- HTTP/2 instead of HTTP/1.1 — multiplexed connections, lower latency
+- Strongly typed contract — both sides compile from the same .proto file
+- Feels like calling a local function instead of constructing HTTP requests
+
+**How to test:**
+
+- Use grpcurl instead of curl
+- grpcurl -plaintext -d '{"key":"user:123","policy":"default"}' localhost:50051 ratelimiter.RateLimiter/Check

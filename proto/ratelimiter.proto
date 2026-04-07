@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package ratelimiter;
+
+option go_package = "github.com/Rate-Limiter/proto";
+
+message CheckRequest {
+  string key = 1;
+  string policy = 2;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+  int64 remaining = 2;
+  string resetAt = 3;
+}
+
+service RateLimiter {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
